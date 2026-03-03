@@ -31,6 +31,9 @@ RULES:
 {CONSTRAINTS_TEXT}
 11. The 'description' field for 'content' templates should be a comprehensive and engaging paragraph (2-4 sentences for feed and post, 3-5 sentences for story), providing enough detail to be informative while staying within the character limits.
 12. Do NOT use emojis in any of the generated text.
+13. CONTINUOUS CONTENT FLOW: When generating multiple 'content' slides, treat them as a continuous carousel story. Each slide MUST cover a DIFFERENT aspect or point — never repeat or rephrase information already covered in a previous slide. The slides should read like sequential chapters: slide 1 introduces the topic, slide 2 expands with new details, slide 3 adds further depth, and so on.
+14. NO REDUNDANCY: Each content slide's 'title' must be unique and distinct. Each 'description' must contain NEW information not mentioned in any other slide. Do not restate the same facts, statistics, or points across different slides.
+15. LOGICAL PROGRESSION: Order the content slides in a logical reading sequence so that when swiped through as a carousel, they tell a coherent, progressive story from beginning to end.
 
 
 JSON SCHEMA EXAMPLE:

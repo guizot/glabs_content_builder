@@ -65,13 +65,21 @@ def run_pipeline(user_prompt: str, output_dir: str) -> List[str]:
     canvas = CanvasFeature()
 
     print("\n[Telegram Pipeline] Step 1 — Scraping context URLs...")
-    context = scraper.execute(user_prompt)
+    scrape_result = scraper.execute(user_prompt, output_dir)
+    context = scrape_result["context"]
+    article_image_path = scrape_result["image_path"]
 
     print("[Telegram Pipeline] Step 2 — LLM generation...")
     batch_data = llm.execute(user_prompt, context)
 
     if not batch_data:
         return []
+
+    # Inject article image path into hook items so design2 can use it
+    if article_image_path:
+        for item in batch_data:
+            if item.get("template") == "hook":
+                item.setdefault("content", {})["image_path"] = article_image_path
 
     print("[Telegram Pipeline] Step 3 — Canvas rendering...")
     output_paths = canvas.execute(batch_data, output_dir)

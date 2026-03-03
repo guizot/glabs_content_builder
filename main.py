@@ -53,8 +53,14 @@ def full_generation_pipeline(prompt_path: str, output_dir: str):
     llm = LLMFeature()
     canvas = CanvasFeature()
 
+    # Add unique subfolder
+    timestamp_for_folder = datetime.now().strftime("%d %B %Y %H:%M:%S")
+    final_output = os.path.join(output_dir, timestamp_for_folder)
+
     print("\n[Step 1 - ScraperFeature] Scraping context URLs...")
-    context = scraper.execute(user_prompt)
+    scrape_result = scraper.execute(user_prompt, final_output)
+    context = scrape_result["context"]
+    article_image_path = scrape_result["image_path"]
 
     print("\n[Step 2 - LLMFeature] Translating prompt into structured Content Builder JSON...")
     batch_data = llm.execute(user_prompt, context)
@@ -72,11 +78,13 @@ def full_generation_pipeline(prompt_path: str, output_dir: str):
     #     
     # print(f"  ✅ Saved generated JSON Payload: {json_out_path}")
 
+    # Inject article image path into hook items so design2 can use it
+    if article_image_path:
+        for item in batch_data:
+            if item.get("template") == "hook":
+                item.setdefault("content", {})["image_path"] = article_image_path
+
     print("\n[Step 3 - CanvasFeature] Dispatching payload to Canvas Component...")
-    # Add unique subfolder
-    timestamp_for_folder = datetime.now().strftime("%d %B %Y %H:%M:%S")
-    final_output = os.path.join(output_dir, timestamp_for_folder)
-    
     canvas.execute(batch_data, final_output)
 
 

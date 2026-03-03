@@ -55,7 +55,7 @@ class ContentDesign2:
             x=padding_x,
             y=content_y,
             color=text_white,
-            line_spacing=16,
+            line_spacing=6,
             align="left",
         )
 
