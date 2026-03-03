@@ -1,1 +1,1 @@
-create instagram post that has 1 hook and 5 content using design1 from this articles: https://en.wikipedia.org/wiki/Artificial_intelligence
+create instagram post that has 1 hook and 5 content, make the title content has number like '1. blablabla', '2. blablabla' etc. using design1 from this articles: https://www.alodokter.com/cara-menjaga-kelezatan-daging-merah-agar-tetap-bersahabat

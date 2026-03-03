@@ -8,12 +8,12 @@ import importlib
 
 # Registry: (ratio, template, design) → "module.path.ClassName"
 TEMPLATE_REGISTRY = {
-    ("instagram_post", "hook", "design1"): "src.templates.instagram_post.hook.design1.HookDesign1",
-    ("instagram_post", "content", "design1"): "src.templates.instagram_post.content.design1.ContentDesign1",
-    ("instagram_story", "hook", "design1"): "src.templates.instagram_story.hook.design1.HookDesign1",
-    ("instagram_story", "content", "design1"): "src.templates.instagram_story.content.design1.ContentDesign1",
-    ("instagram_feed", "hook", "design1"): "src.templates.instagram_feed.hook.design1.HookDesign1",
-    ("instagram_feed", "content", "design1"): "src.templates.instagram_feed.content.design1.ContentDesign1",
+    ("instagram_post", "hook", "design1"): "src.features.canvas_feature.templates.instagram_post.hook.design1.HookDesign1",
+    ("instagram_post", "content", "design1"): "src.features.canvas_feature.templates.instagram_post.content.design1.ContentDesign1",
+    ("instagram_story", "hook", "design1"): "src.features.canvas_feature.templates.instagram_story.hook.design1.HookDesign1",
+    ("instagram_story", "content", "design1"): "src.features.canvas_feature.templates.instagram_story.content.design1.ContentDesign1",
+    ("instagram_feed", "hook", "design1"): "src.features.canvas_feature.templates.instagram_feed.hook.design1.HookDesign1",
+    ("instagram_feed", "content", "design1"): "src.features.canvas_feature.templates.instagram_feed.content.design1.ContentDesign1",
 }
 
 

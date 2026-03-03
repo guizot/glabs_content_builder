@@ -2,7 +2,7 @@
 System prompt configuration for the LLM to generate Content Builder JSON.
 """
 
-from src.core.validator import LIMITS
+from src.features.canvas_feature.canvas import LIMITS
 
 # Dynamically construct the constraints string based on the LIMITS dictionary
 def _build_constraints_string() -> str:
@@ -26,9 +26,14 @@ RULES:
 6. Allowed Templates: 'hook', 'content'
 7. Allowed Designs: 'design1'
 8. Required fields for 'hook' template inside 'content' object: 'hook_text'
-9. Required fields for 'content' template inside 'content' object: 'title', 'description'
-10. CHARACTER LIMITS (You MUST strictly follow these. Summarize if needed to stay under limit):
+9. Required fields for 'content' template inside 'content' object: 'title', 'description'.
+   - IMPORTANT FOR 'description': You must adapt the length of your text based on the specified 'ratio'.
+   - For 'instagram_story' (550 chars limit): You MUST generate a very detailed explanation. The description length MUST be between 400 and 550 characters. Do not be brief. Expand your points thoroughly.
+   - For 'instagram_feed' (350 chars limit) or 'instagram_post' (400 chars limit), be more concise.
+   - You must reach near the maximum character limit of the chosen format without exceeding it.
+10. CHARACTER LIMITS (You MUST strictly follow these boundaries to prevent text overflow):
 {CONSTRAINTS_TEXT}
+11. Do NOT use emojis in any of the generated text.
 
 JSON SCHEMA EXAMPLE:
 [

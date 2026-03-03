@@ -6,8 +6,8 @@ Optimized for 1080x1350 (4:5) ratio.
 """
 
 from PIL import Image, ImageDraw
-from src.core.canvas import create_canvas
-from src.core.text_utils import load_font, wrap_text, draw_text_block, get_text_height
+from src.features.canvas_feature.canvas import create_canvas
+from src.features.canvas_feature.text_utils import load_font, wrap_text, draw_text_block, get_text_height
 
 
 class HookDesign1:

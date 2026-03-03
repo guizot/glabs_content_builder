@@ -1,13 +1,13 @@
 """
-Instagram Post — Content Template — Design 1
+Instagram Story — Content Template — Design 1
 Style: Light/warm bg, title + description layout,
        coral accent elements.
-Optimized for 1080x1350 (4:5) ratio.
+Optimized for 1080x1920 (9:16) ratio — taller canvas, adjusted paddings.
 """
 
 from PIL import Image, ImageDraw
-from src.core.canvas import create_canvas
-from src.core.text_utils import load_font, wrap_text, draw_text_block, get_text_height
+from src.features.canvas_feature.canvas import create_canvas
+from src.features.canvas_feature.text_utils import load_font, wrap_text, draw_text_block, get_text_height
 
 
 class ContentDesign1:
@@ -26,11 +26,11 @@ class ContentDesign1:
         text_dark = "#2D3436"
         text_muted = "#636E72"
 
-        # --- Left accent stripe ---
+        # --- Left accent stripe (taller for story) ---
         stripe_width = 18
         stripe_x = 80
-        stripe_top = 180
-        stripe_bottom = self.height - 180
+        stripe_top = 250
+        stripe_bottom = self.height - 250
         draw.rectangle(
             [stripe_x, stripe_top, stripe_x + stripe_width, stripe_bottom],
             fill=accent_color,
@@ -41,12 +41,12 @@ class ContentDesign1:
         padding_right = 100
         text_area_width = self.width - padding_left - padding_right
 
-        # --- Title ---
+        # --- Title (positioned higher in story, more vertical room) ---
         title_text = self.content.get("title", "Title Goes Here")
-        title_font = load_font("poppins_semibold", 56)
+        title_font = load_font("poppins_semibold", 54)
         title_lines = wrap_text(title_text, title_font, text_area_width)
 
-        title_y = 260
+        title_y = 380
         title_end_y = draw_text_block(
             draw,
             title_lines,
@@ -59,7 +59,7 @@ class ContentDesign1:
         )
 
         # --- Accent divider ---
-        divider_y = title_end_y + 25
+        divider_y = title_end_y + 30
         divider_width = 80
         draw.rectangle(
             [padding_left, divider_y, padding_left + divider_width, divider_y + 6],
@@ -71,7 +71,7 @@ class ContentDesign1:
         desc_font = load_font("poppins_regular", 34)
         desc_lines = wrap_text(desc_text, desc_font, text_area_width)
 
-        desc_y = divider_y + 45
+        desc_y = divider_y + 50
         draw_text_block(
             draw,
             desc_lines,
@@ -79,14 +79,14 @@ class ContentDesign1:
             x=padding_left,
             y=desc_y,
             color=text_muted,
-            line_spacing=14,
+            line_spacing=16,
             align="left",
         )
 
         # --- Top-right corner circle ---
-        circle_radius = 55
-        circle_x = self.width - 115
-        circle_y = 115
+        circle_radius = 60
+        circle_x = self.width - 110
+        circle_y = 110
         draw.ellipse(
             [
                 circle_x - circle_radius,
@@ -101,7 +101,7 @@ class ContentDesign1:
         badge_w = 120
         badge_h = 8
         badge_x = padding_left
-        badge_y = self.height - 130
+        badge_y = self.height - 200
         draw.rectangle(
             [badge_x, badge_y, badge_x + badge_w, badge_y + badge_h],
             fill=accent_color,

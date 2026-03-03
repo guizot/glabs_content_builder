@@ -5,8 +5,8 @@ Text utilities — font loading, text wrapping, and drawing text blocks.
 import os
 from PIL import ImageFont, ImageDraw
 
-# Base directory: go up from src/core/ → src/ → project root → assets/
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+# Base directory: go up from src/features/canvas_feature/ → src/features/ → src/ → project root → assets/
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 ASSETS_DIR = os.path.join(PROJECT_ROOT, "assets")
 FONTS_DIR = os.path.join(ASSETS_DIR, "fonts")
 
