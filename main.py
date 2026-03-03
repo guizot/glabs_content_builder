@@ -41,15 +41,19 @@ def main():
         print(f"❌ Input file not found: {args.input}")
         sys.exit(1)
 
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%d %B %Y %H:%M:%S")
+    final_output = os.path.join(args.output, timestamp)
+
     print("=" * 50)
     print("  📸 CONTENT BUILDER v1")
     print("=" * 50)
     print(f"  Input:  {args.input}")
-    print(f"  Output: {args.output}")
+    print(f"  Output: {final_output}")
     print("=" * 50)
     print()
 
-    build_from_json(args.input, args.output)
+    build_from_json(args.input, final_output)
 
 
 if __name__ == "__main__":
