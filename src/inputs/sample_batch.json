@@ -1,0 +1,59 @@
+[
+    {
+        "ratio": "instagram_post",
+        "template": "hook",
+        "design": "design1",
+        "output_name": "hook_post_design1",
+        "content": {
+            "hook_text": "Stop scrolling. This changes everything."
+        }
+    },
+    {
+        "ratio": "instagram_post",
+        "template": "content",
+        "design": "design1",
+        "output_name": "content_post_design1",
+        "content": {
+            "title": "3 Habits of High Performers",
+            "description": "They wake up early, they plan their day with intention, and they protect their energy like a non-renewable resource. Start with one, master it, then add the next."
+        }
+    },
+    {
+        "ratio": "instagram_story",
+        "template": "hook",
+        "design": "design1",
+        "output_name": "hook_story_design1",
+        "content": {
+            "hook_text": "The secret nobody talks about."
+        }
+    },
+    {
+        "ratio": "instagram_story",
+        "template": "content",
+        "design": "design1",
+        "output_name": "content_story_design1",
+        "content": {
+            "title": "The Power of Saying No",
+            "description": "Every time you say yes to something unimportant, you're saying no to something that matters. Guard your time fiercely. It's your most valuable asset."
+        }
+    },
+    {
+        "ratio": "instagram_feed",
+        "template": "hook",
+        "design": "design1",
+        "output_name": "hook_feed_design1",
+        "content": {
+            "hook_text": "Read this before it's too late."
+        }
+    },
+    {
+        "ratio": "instagram_feed",
+        "template": "content",
+        "design": "design1",
+        "output_name": "content_feed_design1",
+        "content": {
+            "title": "Build Systems, Not Goals",
+            "description": "Goals give you direction, but systems give you progress. Design your daily habits so that success becomes inevitable rather than aspirational."
+        }
+    }
+]

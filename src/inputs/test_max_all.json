@@ -1,0 +1,32 @@
+[
+    {
+        "ratio": "instagram_feed",
+        "template": "content",
+        "design": "design1",
+        "output_name": "test_max_all_feed",
+        "content": {
+            "title": "This is a Very Long Title Right at the Seventy Character Limit Mark!!",
+            "description": "And this is a description that pushes right up against the three hundred and fifty character limit. It needs to be long enough to test how the layout handles both a maxed-out title and a maxed-out description at the exact same time without breaking boundaries or overlapping elements on the Feed square canvas. Let us see how the spacing looks right now."
+        }
+    },
+    {
+        "ratio": "instagram_post",
+        "template": "content",
+        "design": "design1",
+        "output_name": "test_max_all_post",
+        "content": {
+            "title": "This Is An Eighty Character Title Trying To Push The Limits Of Post Aspect Ratio",
+            "description": "And here we have the description for the post aspect ratio. It is aiming for the four hundred character limit to see how the vertical spacing handles the absolute maximum text load allowed by the validator. Deep work, focus, consistency, habits, and all those good things combined into a single block of text that takes up space. Will the bottom text overlap the bottom coral accent bar? We will find out right now as we keep typing until we reach the threshold."
+        }
+    },
+    {
+        "ratio": "instagram_story",
+        "template": "content",
+        "design": "design1",
+        "output_name": "test_max_all_story",
+        "content": {
+            "title": "One Hundred Character Title For Story Aspect Ratio Let Us See How This Looks On Screen Exactly Now",
+            "description": "The story aspect ratio provides the most vertical space, so its limit is generous at five hundred and fifty characters. This test pushes both that generous title limit and this generous description limit simultaneously. The layout positions the title block at y=380 and flows downward. If both fields are maxed, the bottom of the description should still sit safely above the bottom accent bar at y=height-200. This is the ultimate vertical stress test for our content template design algorithm, ensuring everything fits precisely as intended without overflowing the visual bounds of the canvas we created."
+        }
+    }
+]
