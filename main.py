@@ -151,8 +151,14 @@ def main():
     if args.telegram:
         from dotenv import load_dotenv
         load_dotenv()
+
+        from src.features.scheduler_feature.scheduler import SchedulerFeature
+
+        chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
+        scheduler = SchedulerFeature()
+
         bot = TelegramBotFeature()
-        bot.execute()
+        bot.execute(scheduler=scheduler, chat_id=chat_id)
     elif args.prompt:
         full_generation_pipeline(args.prompt, args.output)
     elif args.input:

@@ -6,10 +6,12 @@ This feature creates a Telegram bot that:
 2. Runs the full generation pipeline (scrape → LLM → canvas)
 3. Sends the generated images back as a media group in the chat
 4. Presents Approve / Reject / Regenerate inline buttons for user approval
+5. Supports scheduled content from the SchedulerFeature
 
 Commands:
-    /start  — Welcome message with usage instructions
-    /help   — Same help info
+    /start    — Welcome message with usage instructions
+    /help     — Same help info
+    /schedule — Show the content schedule board
     Any other text message is treated as a content generation prompt.
 """
 
@@ -18,9 +20,9 @@ import sys
 import shutil
 import asyncio
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
-from telegram import Update, InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, Bot, InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -50,8 +52,9 @@ WELCOME_TEXT = (
     "https://example.com/article\n"
     "```\n\n"
     "📌 *Commands*\n"
-    "/start — Show this welcome message\n"
-    "/help  — Show this welcome message"
+    "/start    — Show this welcome message\n"
+    "/help     — Show this welcome message\n"
+    "/schedule — Show the content schedule board"
 )
 
 # Inline keyboard for approval
@@ -68,6 +71,15 @@ APPROVAL_KEYBOARD = InlineKeyboardMarkup([
 # ── In-memory pending approval store ──────────────────────────────────
 # Key: (chat_id, approval_message_id) → dict with session info
 pending_approvals: Dict[tuple, Dict[str, Any]] = {}
+
+# ── Reference to the scheduler (set by main.py) ──────────────────────
+_scheduler_ref = None
+
+
+def set_scheduler_ref(scheduler):
+    """Set the scheduler reference so approval callbacks can update CSV."""
+    global _scheduler_ref
+    _scheduler_ref = scheduler
 
 
 # ── Pipeline runner (sync, called from the async handler) ──────────────
@@ -104,25 +116,13 @@ def run_pipeline(user_prompt: str, output_dir: str) -> List[str]:
     return output_paths
 
 
-# ── Helper: send images + approval buttons ─────────────────────────────
+# ── Helper: send images to a chat ──────────────────────────────────────
 
-async def send_images_with_approval(
-    update: Update,
-    chat_id: int,
-    output_paths: List[str],
-    user_prompt: str,
-    output_dir: str,
-    user_id: int,
-    user_name: str,
-):
-    """
-    Sends generated images to the chat, then posts an approval message
-    with Approve / Reject / Regenerate inline buttons.
-    Stores the session in pending_approvals.
-    """
+async def _send_images_to_chat(bot: Bot, chat_id: int, output_paths: List[str]):
+    """Send generated images to a Telegram chat."""
     if len(output_paths) == 1:
         with open(output_paths[0], "rb") as photo:
-            await update.effective_chat.send_photo(photo=photo)
+            await bot.send_photo(chat_id=chat_id, photo=photo)
     else:
         # Telegram allows max 10 media per group
         for chunk_start in range(0, len(output_paths), 10):
@@ -132,13 +132,35 @@ async def send_images_with_approval(
                 with open(path, "rb") as f:
                     photo_bytes = f.read()
                 media_group.append(InputMediaPhoto(media=photo_bytes))
-            await update.effective_chat.send_media_group(media=media_group)
+            await bot.send_media_group(chat_id=chat_id, media=media_group)
 
-    # Send the approval message with inline buttons
-    approval_msg = await update.effective_chat.send_message(
-        f"📋 *Content Preview Ready!*\n\n"
-        f"🖼 {len(output_paths)} image(s) generated.\n"
-        f"What would you like to do?",
+
+async def _send_approval_keyboard(
+    bot: Bot,
+    chat_id: int,
+    num_images: int,
+    user_prompt: str,
+    output_dir: str,
+    output_paths: List[str],
+    user_id: int,
+    user_name: str,
+    csv_row_index: Optional[int] = None,
+    scheduler=None,
+):
+    """
+    Send the approval message with inline buttons and register the session.
+    Works for both on-demand (user chat) and scheduled content.
+    """
+    source_label = "📅 Scheduled" if csv_row_index is not None else "💬 On-demand"
+
+    approval_msg = await bot.send_message(
+        chat_id=chat_id,
+        text=(
+            f"📋 *Content Preview Ready!*\n\n"
+            f"🖼 {num_images} image(s) generated.\n"
+            f"📌 Source: {source_label}\n"
+            f"What would you like to do?"
+        ),
         parse_mode="Markdown",
         reply_markup=APPROVAL_KEYBOARD,
     )
@@ -150,9 +172,89 @@ async def send_images_with_approval(
         "output_paths": output_paths,
         "user_id": user_id,
         "user_name": user_name,
+        "csv_row_index": csv_row_index,
+        "scheduler": scheduler,
     }
 
     print(f"  📋 Approval requested — message_id={approval_msg.message_id}")
+
+
+# ── Public helper for scheduler ────────────────────────────────────────
+
+async def send_scheduled_content(
+    bot: Bot,
+    chat_id: int,
+    prompt: str,
+    csv_row_index: int,
+    scheduler,
+):
+    """
+    Called by the SchedulerFeature when a job fires.
+    Runs the pipeline and sends images with approval buttons.
+    """
+    user_id = chat_id  # scheduled content is attributed to the chat
+    user_name = "Scheduler"
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = os.path.join("outputs", f"scheduled_{csv_row_index}_{timestamp}")
+
+    # Notify the chat
+    status_msg = await bot.send_message(
+        chat_id=chat_id,
+        text=(
+            "⏰ *Scheduled content generating...*\n\n"
+            f"📝 _{prompt[:100]}{'...' if len(prompt) > 100 else ''}_\n\n"
+            "This may take a minute."
+        ),
+        parse_mode="Markdown",
+    )
+
+    try:
+        loop = asyncio.get_event_loop()
+        output_paths = await loop.run_in_executor(
+            None, run_pipeline, prompt, output_dir
+        )
+
+        if not output_paths:
+            await bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=status_msg.message_id,
+                text="❌ *Scheduled generation failed.*\nCould not produce content.",
+                parse_mode="Markdown",
+            )
+            return
+
+        await bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=status_msg.message_id,
+            text=f"✅ *Done!* Sending {len(output_paths)} image(s)...",
+            parse_mode="Markdown",
+        )
+
+        await _send_images_to_chat(bot, chat_id, output_paths)
+        await _send_approval_keyboard(
+            bot=bot,
+            chat_id=chat_id,
+            num_images=len(output_paths),
+            user_prompt=prompt,
+            output_dir=output_dir,
+            output_paths=output_paths,
+            user_id=user_id,
+            user_name=user_name,
+            csv_row_index=csv_row_index,
+            scheduler=scheduler,
+        )
+
+    except Exception as e:
+        print(f"  ❌ Scheduled content error: {e}")
+        await bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=status_msg.message_id,
+            text=f"❌ *Scheduled content error:*\n`{str(e)}`",
+            parse_mode="Markdown",
+        )
+        if os.path.exists(output_dir):
+            shutil.rmtree(output_dir, ignore_errors=True)
 
 
 # ── Handlers ───────────────────────────────────────────────────────────
@@ -160,6 +262,49 @@ async def send_images_with_approval(
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start and /help commands."""
     await update.message.reply_text(WELCOME_TEXT, parse_mode="Markdown")
+
+
+async def schedule_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /schedule command — show the content schedule board."""
+    if _scheduler_ref is None:
+        await update.message.reply_text(
+            "⚠️ Scheduler is not active.", parse_mode="Markdown"
+        )
+        return
+
+    rows = _scheduler_ref.load_all_rows()
+
+    if not rows:
+        await update.message.reply_text(
+            "📅 *Schedule Board*\n\nNo entries found in CSV.",
+            parse_mode="Markdown",
+        )
+        return
+
+    # Status emoji mapping
+    status_emoji = {
+        "pending": "⏳",
+        "waiting_approval": "🔔",
+        "approved": "✅",
+        "rejected": "❌",
+        "error": "⚠️",
+    }
+
+    lines = ["📅 *Content Schedule Board*\n"]
+    for row in rows:
+        emoji = status_emoji.get(row["status"].lower(), "❓")
+        prompt_short = row["prompt"][:50] + ("..." if len(row["prompt"]) > 50 else "")
+        last_run = f" — Last: {row['last_run']}" if row["last_run"] else ""
+
+        lines.append(
+            f"{row['row_index']+1}\\. {emoji} `{row['scheduled_time']}`\n"
+            f"   _{prompt_short}_\n"
+            f"   Status: *{row['status']}*{last_run}\n"
+        )
+
+    await update.message.reply_text(
+        "\n".join(lines), parse_mode="Markdown"
+    )
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -215,13 +360,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown",
         )
 
-        # Send images + approval buttons (no cleanup yet — user might regenerate)
-        await send_images_with_approval(
-            update=update,
+        # Send images + approval buttons
+        await _send_images_to_chat(update.get_bot(), chat_id, output_paths)
+        await _send_approval_keyboard(
+            bot=update.get_bot(),
             chat_id=chat_id,
-            output_paths=output_paths,
+            num_images=len(output_paths),
             user_prompt=user_prompt,
             output_dir=output_dir,
+            output_paths=output_paths,
             user_id=user_id,
             user_name=user_name,
         )
@@ -262,6 +409,8 @@ async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT
     output_dir = session["output_dir"]
     user_name = session["user_name"]
     user_id = session["user_id"]
+    csv_row_index = session.get("csv_row_index")
+    scheduler = session.get("scheduler") or _scheduler_ref
 
     # ── Approve ────────────────────────────────────────────────────────
     if action == "approve":
@@ -273,6 +422,11 @@ async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT
             "_(Social media posting API will be connected soon)_",
             parse_mode="Markdown",
         )
+
+        # Update CSV if this was a scheduled job
+        if csv_row_index is not None and scheduler:
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            scheduler.update_csv_status(csv_row_index, "approved", now_str)
 
         # Clean up temp folder
         if os.path.exists(output_dir):
@@ -291,6 +445,11 @@ async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT
             "Send a new prompt whenever you're ready!",
             parse_mode="Markdown",
         )
+
+        # Update CSV if this was a scheduled job
+        if csv_row_index is not None and scheduler:
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            scheduler.update_csv_status(csv_row_index, "rejected", now_str)
 
         # Clean up temp folder
         if os.path.exists(output_dir):
@@ -337,14 +496,19 @@ async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT
                 return
 
             # Send new images + new approval buttons
-            await send_images_with_approval(
-                update=update,
+            bot = query.get_bot()
+            await _send_images_to_chat(bot, chat_id, new_output_paths)
+            await _send_approval_keyboard(
+                bot=bot,
                 chat_id=chat_id,
-                output_paths=new_output_paths,
+                num_images=len(new_output_paths),
                 user_prompt=user_prompt,
                 output_dir=new_output_dir,
+                output_paths=new_output_paths,
                 user_id=user_id,
                 user_name=user_name,
+                csv_row_index=csv_row_index,
+                scheduler=scheduler,
             )
 
         except Exception as e:
@@ -372,7 +536,14 @@ class TelegramBotFeature(BaseFeature):
         """
         Start the Telegram bot. This call is **blocking** — it runs until
         the process is terminated (Ctrl-C / SIGINT).
+
+        Optional kwargs:
+            scheduler: SchedulerFeature instance to start alongside the bot
+            chat_id: Telegram chat ID for scheduled content delivery
         """
+        scheduler = kwargs.get("scheduler")
+        chat_id = kwargs.get("chat_id")
+
         if not self.token:
             print("❌ No Telegram bot token supplied. "
                   "Set TELEGRAM_BOT_TOKEN in .env or pass it to the constructor.")
@@ -382,16 +553,30 @@ class TelegramBotFeature(BaseFeature):
         print("  🤖 CONTENT BUILDER — Telegram Bot Mode")
         print("=" * 50)
         print(f"  Token: {self.token[:8]}...{self.token[-4:]}")
+        if chat_id:
+            print(f"  Chat ID: {chat_id}")
         print("  Waiting for messages...")
         print("=" * 50)
 
         app = Application.builder().token(self.token).build()
 
+        # Set global scheduler reference
+        if scheduler:
+            set_scheduler_ref(scheduler)
+
         # Register handlers
         app.add_handler(CommandHandler("start", start_command))
         app.add_handler(CommandHandler("help", start_command))
+        app.add_handler(CommandHandler("schedule", schedule_command))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
         app.add_handler(CallbackQueryHandler(handle_approval_callback))
+
+        # Start scheduler via post_init if provided
+        if scheduler and chat_id:
+            async def post_init(application: Application):
+                await scheduler.start(application.bot, chat_id)
+
+            app.post_init = post_init
 
         # Start long-polling
         app.run_polling(allowed_updates=Update.ALL_TYPES)
