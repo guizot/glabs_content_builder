@@ -2,7 +2,7 @@ import os
 import json
 from openai import OpenAI
 from dotenv import load_dotenv
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Union
 
 from src.features.base_feature import BaseFeature
 from src.features.llm_feature.prompt import SYSTEM_PROMPT
@@ -22,13 +22,13 @@ class LLMFeature(BaseFeature):
             base_url=os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1"),
         )
 
-    def execute(self, user_prompt: str, context: str = "") -> List[Dict[str, Any]]:
+    def execute(self, user_prompt: str, context: str = "") -> Dict[str, Any]:
         """
         Inputs: 
             - user_prompt (str): The raw text prompt.
             - context (str): Extracted context from URLs.
         Outputs:
-            - List of dictionary objects ready for the CanvasFeature.
+            - Dictionary containing "caption" (str) and "slides" (List of dicts) ready for CanvasFeature.
         """
         # Combine user prompt and context if available
         final_prompt = user_prompt
@@ -61,15 +61,22 @@ class LLMFeature(BaseFeature):
                 
             parsed = json.loads(raw_text.strip())
             
-            if not isinstance(parsed, list):
-                parsed = [parsed]
-                
-            return parsed
+            if isinstance(parsed, list):
+                return {"caption": "", "slides": parsed}
+            elif isinstance(parsed, dict) and "slides" in parsed:
+                if not isinstance(parsed["slides"], list):
+                    parsed["slides"] = [parsed["slides"]]
+                return parsed
+            elif isinstance(parsed, dict):
+                # Fallback if structure is weird
+                return {"caption": parsed.get("caption", ""), "slides": []}
+            else:
+                return {"caption": "", "slides": []}
             
         except json.JSONDecodeError as e:
             print(f"  ❌ Failed to parse LLM response as JSON: {e}")
             print(f"  Raw response: {raw_text}")
-            return []
+            return {"caption": "", "slides": []}
         except Exception as e:
             print(f"  ❌ Failed to call LLM: {str(e)}")
-            return []
+            return {"caption": "", "slides": []}

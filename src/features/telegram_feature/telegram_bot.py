@@ -86,10 +86,10 @@ def set_scheduler_ref(scheduler):
 
 # ── Pipeline runner (sync, called from the async handler) ──────────────
 
-def run_pipeline(user_prompt: str, output_dir: str) -> List[str]:
+def run_pipeline(user_prompt: str, output_dir: str) -> tuple[List[str], str]:
     """
-    Runs the full generation pipeline synchronously and returns a list
-    of output image paths.
+    Runs the full generation pipeline synchronously and returns a tuple
+    of (output_paths, generated_caption).
     """
     scraper = ScraperFeature()
     llm = LLMFeature()
@@ -101,10 +101,13 @@ def run_pipeline(user_prompt: str, output_dir: str) -> List[str]:
     article_image_path = scrape_result["image_path"]
 
     print("[Telegram Pipeline] Step 2 — LLM generation...")
-    batch_data = llm.execute(user_prompt, context)
+    llm_payload = llm.execute(user_prompt, context)
 
-    if not batch_data:
-        return []
+    if not llm_payload or not llm_payload.get("slides"):
+        return [], ""
+
+    batch_data = llm_payload.get("slides", [])
+    generated_caption = llm_payload.get("caption", "")
 
     # Inject article image path into hook items so design2 can use it
     if article_image_path:
@@ -115,7 +118,7 @@ def run_pipeline(user_prompt: str, output_dir: str) -> List[str]:
     print("[Telegram Pipeline] Step 3 — Canvas rendering...")
     output_paths = canvas.execute(batch_data, output_dir)
 
-    return output_paths
+    return output_paths, generated_caption
 
 
 # ── Helper: send images to a chat ──────────────────────────────────────
@@ -153,6 +156,7 @@ async def _send_approval_keyboard(
     user_name: str,
     csv_row_index: Optional[int] = None,
     scheduler=None,
+    generated_caption: str = "",
 ):
     """
     Send the approval message with inline buttons and register the session.
@@ -182,6 +186,7 @@ async def _send_approval_keyboard(
         "user_name": user_name,
         "csv_row_index": csv_row_index,
         "scheduler": scheduler,
+        "generated_caption": generated_caption,
     }
 
     print(f"  📋 Approval requested — message_id={approval_msg.message_id}")
@@ -219,7 +224,7 @@ async def send_scheduled_content(
 
     try:
         loop = asyncio.get_event_loop()
-        output_paths = await loop.run_in_executor(
+        output_paths, generated_caption = await loop.run_in_executor(
             None, run_pipeline, prompt, output_dir
         )
 
@@ -252,6 +257,7 @@ async def send_scheduled_content(
             user_name=user_name,
             csv_row_index=csv_row_index,
             scheduler=scheduler,
+            generated_caption=generated_caption,
         )
 
     except Exception as e:
@@ -350,7 +356,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Run the heavy pipeline in a thread so we don't block the event loop
         loop = asyncio.get_event_loop()
-        output_paths = await loop.run_in_executor(
+        output_paths, generated_caption = await loop.run_in_executor(
             None, run_pipeline, user_prompt, output_dir
         )
 
@@ -381,6 +387,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             file_ids=file_ids,
             user_id=user_id,
             user_name=user_name,
+            generated_caption=generated_caption,
         )
 
     except Exception as e:
@@ -496,10 +503,11 @@ async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT
                     print(f"Error uploading file {path} to catbox: {e}")
 
             if file_urls:
-                # Text for posting = user's prompt (or we could extract title from LLM batch... but user prompt is safer)
+                # Use LLM-generated caption, fallback to user prompt
+                final_text = session.get("generated_caption") or user_prompt
                 success = repliz.create_schedule(
                     account_ids,
-                    text=user_prompt,
+                    text=final_text,
                     media_urls=file_urls
                 )
                 if success:
@@ -568,7 +576,7 @@ async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT
 
         try:
             loop = asyncio.get_event_loop()
-            new_output_paths = await loop.run_in_executor(
+            new_output_paths, generated_caption = await loop.run_in_executor(
                 None, run_pipeline, user_prompt, new_output_dir
             )
 
@@ -595,6 +603,7 @@ async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT
                 user_name=user_name,
                 csv_row_index=csv_row_index,
                 scheduler=scheduler,
+                generated_caption=generated_caption,
             )
 
         except Exception as e:

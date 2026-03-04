@@ -63,9 +63,9 @@ def full_generation_pipeline(prompt_path: str, output_dir: str):
     article_image_path = scrape_result["image_path"]
 
     print("\n[Step 2 - LLMFeature] Translating prompt into structured Content Builder JSON...")
-    batch_data = llm.execute(user_prompt, context)
+    llm_payload = llm.execute(user_prompt, context)
     
-    if not batch_data:
+    if not llm_payload or not llm_payload.get("slides"):
         print("❌ Generation failed at LLM phase. Exiting.")
         sys.exit(1)
 
@@ -77,6 +77,12 @@ def full_generation_pipeline(prompt_path: str, output_dir: str):
     #     json.dump(batch_data, f, indent=4)
     #     
     # print(f"  ✅ Saved generated JSON Payload: {json_out_path}")
+
+    batch_data = llm_payload.get("slides", [])
+    caption = llm_payload.get("caption", "")
+    
+    if caption:
+        print(f"  📝 Generated Caption: {caption}")
 
     # Inject article image path into hook items so design2 can use it
     if article_image_path:
@@ -104,10 +110,19 @@ def json_only_pipeline(json_path: str, output_dir: str):
     
     canvas = CanvasFeature()
     
+    # Support both old schema (list) and new schema (dict with "slides")
+    if isinstance(batch_data, dict) and "slides" in batch_data:
+        slides = batch_data["slides"]
+    else:
+        slides = batch_data
+        
+    if not isinstance(slides, list):
+        slides = [slides]
+    
     timestamp = datetime.now().strftime("%d %B %Y %H:%M:%S")
     final_output = os.path.join(output_dir, timestamp)
 
-    canvas.execute(batch_data, final_output)
+    canvas.execute(slides, final_output)
 
 
 def main():
