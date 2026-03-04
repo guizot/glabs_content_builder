@@ -14,9 +14,9 @@ class LLMFeature(BaseFeature):
     scraped context, and returning a structured JSON batch using an LLM.
     """
 
-    def __init__(self, model: str = "arcee-ai/trinity-large-preview:free"):
+    def __init__(self, model: str = None):
         load_dotenv()
-        self.model = model
+        self.model = model or os.environ.get("OPENAI_MODEL", "arcee-ai/trinity-large-preview:free")
         self.client = OpenAI(
             api_key=os.environ.get("OPENAI_API_KEY"),
             base_url=os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1"),
