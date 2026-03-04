@@ -5,6 +5,7 @@ This feature creates a Telegram bot that:
 1. Listens for user messages containing content generation prompts
 2. Runs the full generation pipeline (scrape → LLM → canvas)
 3. Sends the generated images back as a media group in the chat
+4. Presents Approve / Reject / Regenerate inline buttons for user approval
 
 Commands:
     /start  — Welcome message with usage instructions
@@ -17,13 +18,14 @@ import sys
 import shutil
 import asyncio
 from datetime import datetime
-from typing import List
+from typing import List, Dict, Any
 
-from telegram import Update, InputMediaPhoto
+from telegram import Update, InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
+    CallbackQueryHandler,
     filters,
     ContextTypes,
 )
@@ -51,6 +53,21 @@ WELCOME_TEXT = (
     "/start — Show this welcome message\n"
     "/help  — Show this welcome message"
 )
+
+# Inline keyboard for approval
+APPROVAL_KEYBOARD = InlineKeyboardMarkup([
+    [
+        InlineKeyboardButton("✅ Approve", callback_data="approve"),
+        InlineKeyboardButton("❌ Reject", callback_data="reject"),
+    ],
+    [
+        InlineKeyboardButton("🔄 Regenerate", callback_data="regenerate"),
+    ],
+])
+
+# ── In-memory pending approval store ──────────────────────────────────
+# Key: (chat_id, approval_message_id) → dict with session info
+pending_approvals: Dict[tuple, Dict[str, Any]] = {}
 
 
 # ── Pipeline runner (sync, called from the async handler) ──────────────
@@ -87,6 +104,57 @@ def run_pipeline(user_prompt: str, output_dir: str) -> List[str]:
     return output_paths
 
 
+# ── Helper: send images + approval buttons ─────────────────────────────
+
+async def send_images_with_approval(
+    update: Update,
+    chat_id: int,
+    output_paths: List[str],
+    user_prompt: str,
+    output_dir: str,
+    user_id: int,
+    user_name: str,
+):
+    """
+    Sends generated images to the chat, then posts an approval message
+    with Approve / Reject / Regenerate inline buttons.
+    Stores the session in pending_approvals.
+    """
+    if len(output_paths) == 1:
+        with open(output_paths[0], "rb") as photo:
+            await update.effective_chat.send_photo(photo=photo)
+    else:
+        # Telegram allows max 10 media per group
+        for chunk_start in range(0, len(output_paths), 10):
+            chunk = output_paths[chunk_start : chunk_start + 10]
+            media_group = []
+            for path in chunk:
+                with open(path, "rb") as f:
+                    photo_bytes = f.read()
+                media_group.append(InputMediaPhoto(media=photo_bytes))
+            await update.effective_chat.send_media_group(media=media_group)
+
+    # Send the approval message with inline buttons
+    approval_msg = await update.effective_chat.send_message(
+        f"📋 *Content Preview Ready!*\n\n"
+        f"🖼 {len(output_paths)} image(s) generated.\n"
+        f"What would you like to do?",
+        parse_mode="Markdown",
+        reply_markup=APPROVAL_KEYBOARD,
+    )
+
+    # Store pending state
+    pending_approvals[(chat_id, approval_msg.message_id)] = {
+        "user_prompt": user_prompt,
+        "output_dir": output_dir,
+        "output_paths": output_paths,
+        "user_id": user_id,
+        "user_name": user_name,
+    }
+
+    print(f"  📋 Approval requested — message_id={approval_msg.message_id}")
+
+
 # ── Handlers ───────────────────────────────────────────────────────────
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -107,6 +175,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
     user_name = update.effective_user.first_name or "User"
+    chat_id = update.effective_chat.id
 
     print(f"\n{'='*50}")
     print(f"  🤖 Telegram request from {user_name} (ID: {user_id})")
@@ -140,30 +209,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Send images
+        # Update status
         await status_msg.edit_text(
             f"✅ *Done!* Sending {len(output_paths)} image(s)...",
             parse_mode="Markdown",
         )
 
-        if len(output_paths) == 1:
-            with open(output_paths[0], "rb") as photo:
-                await update.message.reply_photo(photo=photo)
-        else:
-            # Telegram allows max 10 media per group
-            for chunk_start in range(0, len(output_paths), 10):
-                chunk = output_paths[chunk_start : chunk_start + 10]
-                media_group = []
-                for path in chunk:
-                    with open(path, "rb") as f:
-                        photo_bytes = f.read()
-                    media_group.append(InputMediaPhoto(media=photo_bytes))
-
-                await update.message.reply_media_group(media=media_group)
-
-        await status_msg.edit_text(
-            f"🎉 *All {len(output_paths)} image(s) sent successfully!*",
-            parse_mode="Markdown",
+        # Send images + approval buttons (no cleanup yet — user might regenerate)
+        await send_images_with_approval(
+            update=update,
+            chat_id=chat_id,
+            output_paths=output_paths,
+            user_prompt=user_prompt,
+            output_dir=output_dir,
+            user_id=user_id,
+            user_name=user_name,
         )
 
     except Exception as e:
@@ -172,12 +232,129 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"❌ *An error occurred:*\n`{str(e)}`",
             parse_mode="Markdown",
         )
-
-    finally:
-        # Clean up temp output directory
+        # Clean up on error
         if os.path.exists(output_dir):
             shutil.rmtree(output_dir, ignore_errors=True)
-            print(f"  🧹 Cleaned up temp folder: {output_dir}")
+
+
+async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handle inline button presses: approve / reject / regenerate.
+    """
+    query = update.callback_query
+    await query.answer()  # acknowledge the button press
+
+    chat_id = query.message.chat_id
+    message_id = query.message.message_id
+    action = query.data
+
+    # Look up the pending session
+    session_key = (chat_id, message_id)
+    session = pending_approvals.get(session_key)
+
+    if not session:
+        await query.edit_message_text(
+            "⚠️ This approval session has expired or was already handled.",
+        )
+        return
+
+    user_prompt = session["user_prompt"]
+    output_dir = session["output_dir"]
+    user_name = session["user_name"]
+    user_id = session["user_id"]
+
+    # ── Approve ────────────────────────────────────────────────────────
+    if action == "approve":
+        print(f"  ✅ Content APPROVED by {user_name} (ID: {user_id})")
+
+        await query.edit_message_text(
+            "✅ *Content Approved!*\n\n"
+            "The content has been approved and is ready to post.\n"
+            "_(Social media posting API will be connected soon)_",
+            parse_mode="Markdown",
+        )
+
+        # Clean up temp folder
+        if os.path.exists(output_dir):
+            shutil.rmtree(output_dir, ignore_errors=True)
+            print(f"  🧹 Cleaned up: {output_dir}")
+
+        del pending_approvals[session_key]
+
+    # ── Reject ─────────────────────────────────────────────────────────
+    elif action == "reject":
+        print(f"  ❌ Content REJECTED by {user_name} (ID: {user_id})")
+
+        await query.edit_message_text(
+            "❌ *Content Rejected.*\n\n"
+            "The content has been discarded. "
+            "Send a new prompt whenever you're ready!",
+            parse_mode="Markdown",
+        )
+
+        # Clean up temp folder
+        if os.path.exists(output_dir):
+            shutil.rmtree(output_dir, ignore_errors=True)
+            print(f"  🧹 Cleaned up: {output_dir}")
+
+        del pending_approvals[session_key]
+
+    # ── Regenerate ─────────────────────────────────────────────────────
+    elif action == "regenerate":
+        print(f"  🔄 Content REGENERATION requested by {user_name} (ID: {user_id})")
+
+        await query.edit_message_text(
+            "🔄 *Regenerating content...*\n\n"
+            "Please wait while I create new images with the same prompt.",
+            parse_mode="Markdown",
+        )
+
+        # Remove old session
+        del pending_approvals[session_key]
+
+        # Clean up old temp folder
+        if os.path.exists(output_dir):
+            shutil.rmtree(output_dir, ignore_errors=True)
+            print(f"  🧹 Cleaned up old folder: {output_dir}")
+
+        # New output folder
+        new_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        new_output_dir = os.path.join("outputs", f"telegram_{user_id}_{new_timestamp}")
+
+        try:
+            loop = asyncio.get_event_loop()
+            new_output_paths = await loop.run_in_executor(
+                None, run_pipeline, user_prompt, new_output_dir
+            )
+
+            if not new_output_paths:
+                await update.effective_chat.send_message(
+                    "❌ *Regeneration failed.*\n"
+                    "The AI could not produce valid content. "
+                    "Please try sending a new prompt.",
+                    parse_mode="Markdown",
+                )
+                return
+
+            # Send new images + new approval buttons
+            await send_images_with_approval(
+                update=update,
+                chat_id=chat_id,
+                output_paths=new_output_paths,
+                user_prompt=user_prompt,
+                output_dir=new_output_dir,
+                user_id=user_id,
+                user_name=user_name,
+            )
+
+        except Exception as e:
+            print(f"  ❌ Regeneration error: {e}")
+            await update.effective_chat.send_message(
+                f"❌ *Regeneration error:*\n`{str(e)}`",
+                parse_mode="Markdown",
+            )
+            if os.path.exists(new_output_dir):
+                shutil.rmtree(new_output_dir, ignore_errors=True)
 
 
 # ── Feature class (follows BaseFeature pattern) ───────────────────────
@@ -214,6 +391,7 @@ class TelegramBotFeature(BaseFeature):
         app.add_handler(CommandHandler("start", start_command))
         app.add_handler(CommandHandler("help", start_command))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        app.add_handler(CallbackQueryHandler(handle_approval_callback))
 
         # Start long-polling
         app.run_polling(allowed_updates=Update.ALL_TYPES)
