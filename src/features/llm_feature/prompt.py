@@ -35,7 +35,7 @@ RULES:
 14. CONTINUOUS CONTENT FLOW: When generating multiple 'content' slides, treat them as a continuous carousel story. Each slide MUST cover a DIFFERENT aspect or point — never repeat or rephrase information already covered in a previous slide. The slides should read like sequential chapters: slide 1 introduces the topic, slide 2 expands with new details, slide 3 adds further depth, and so on.
 15. NO REDUNDANCY: Each content slide's 'title' must be unique and distinct. Each 'description' must contain NEW information not mentioned in any other slide. Do not restate the same facts, statistics, or points across different slides.
 16. LOGICAL PROGRESSION: Order the content slides in a logical reading sequence so that when swiped through as a carousel, they tell a coherent, progressive story from beginning to end.
-17. CTA SLIDE: When the user requests a CTA (call-to-action) slide, use template 'cta'. The 'subtitle' should be a short label (e.g. "THANK YOU"), and 'cta_text' should be the main engagement prompt. Buttons should be relevant action labels.
+17. CTA SLIDE: When the user requests a CTA (call-to-action) slide, use template 'cta'. The 'subtitle' should be a short label (e.g. "ANY THOUGHTS?"), and 'cta_text' should be an engagement prompt (e.g. "What are your thoughts on this?", "Which one is your favorite?"). Focus on asking user's opinion or reaction about the content.
 
 
 JSON SCHEMA EXAMPLE:
