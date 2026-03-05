@@ -2,4 +2,4 @@ create
 instagram feed that has 1 hook and 3 content and 1 cta
 make the title of the content more catchy and interesting
 using design2 from this articles:
-https://www.theverge.com/tech/889769/nothing-phone-4a-pro-design-opaque-transparent
+https://www.theverge.com/ai-artificial-intelligence/889395/ai-agents-unmask-anonymous-online-accounts

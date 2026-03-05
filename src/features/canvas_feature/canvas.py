@@ -73,9 +73,9 @@ LIMITS = {
     ("instagram_feed", "content"): {"title": 70, "description": 350},
 
     # --- CTA (all ratios) ---
-    ("instagram_post", "cta"):  {"subtitle": 40, "cta_text": 120},
-    ("instagram_story", "cta"): {"subtitle": 40, "cta_text": 120},
-    ("instagram_feed", "cta"):  {"subtitle": 40, "cta_text": 120},
+    ("instagram_post", "cta"):  {"subtitle": 30, "cta_text": 70},
+    ("instagram_story", "cta"): {"subtitle": 30, "cta_text": 85},
+    ("instagram_feed", "cta"):  {"subtitle": 30, "cta_text": 60},
 }
 
 
