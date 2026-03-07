@@ -24,6 +24,7 @@ from src.features.scraper_feature.scraper import ScraperFeature
 from src.features.llm_feature.llm import LLMFeature
 from src.features.canvas_feature.canvas import CanvasFeature
 from src.features.telegram_feature.telegram_bot import TelegramBotFeature
+from src.features.image_gen_feature.image_gen import ImageGenFeature
 
 
 def validate_file(path: str) -> None:
@@ -80,11 +81,20 @@ def full_generation_pipeline(prompt_path: str, output_dir: str):
 
     batch_data = llm_payload.get("slides", [])
     caption = llm_payload.get("caption", "")
+    image_prompt = llm_payload.get("image_prompt", "")
     
     if caption:
         print(f"  📝 Generated Caption: {caption}")
 
-    # Inject article image path into hook items so design2 can use it
+    # Step 2.5 - Optional Image Generation
+    if image_prompt:
+        print(f"\n[Step 2.5 - ImageGenFeature] Generating requested image...")
+        image_gen = ImageGenFeature()
+        generated_image_path = image_gen.execute(image_prompt, final_output)
+        if generated_image_path:
+            article_image_path = generated_image_path
+
+    # Inject article/generated image path into hook items so design2 can use it
     if article_image_path:
         for item in batch_data:
             if item.get("template") == "hook":

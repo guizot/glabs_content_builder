@@ -1,4 +1,1 @@
-create 
-instagram feed that has 1 hook and 2 content also 1 cta
-using design2 from this articles:
-https://www.theverge.com/tech/889756/mwc-2026-unihertz-light-phone-clicks
+generate instagram feed, 1 hook, 2 content slides, and 1 CTA slide about cat. generate image header for hook about cat. use design2 for all slides.

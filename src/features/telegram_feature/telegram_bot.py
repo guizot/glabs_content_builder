@@ -38,6 +38,7 @@ from src.features.scraper_feature.scraper import ScraperFeature
 from src.features.llm_feature.llm import LLMFeature
 from src.features.canvas_feature.canvas import CanvasFeature
 from src.features.repliz_feature.repliz import ReplizFeature
+from src.features.image_gen_feature.image_gen import ImageGenFeature
 
 
 # ── Constants ──────────────────────────────────────────────────────────
@@ -108,8 +109,18 @@ def run_pipeline(user_prompt: str, output_dir: str) -> tuple[List[str], str]:
 
     batch_data = llm_payload.get("slides", [])
     generated_caption = llm_payload.get("caption", "")
+    image_prompt = llm_payload.get("image_prompt", "")
 
-    # Inject article image path into hook items so design2 can use it
+    # Step 2.5 — Optional Image Generation
+    if image_prompt:
+        print(f"[Telegram Pipeline] Step 2.5 — Image generation requested: {image_prompt[:50]}...")
+        image_gen = ImageGenFeature()
+        generated_image_path = image_gen.execute(image_prompt, output_dir)
+        if generated_image_path:
+            # Override scraped image with the newly generated image
+            article_image_path = generated_image_path
+
+    # Inject article/generated image path into hook items so design2 can use it
     if article_image_path:
         for item in batch_data:
             if item.get("template") == "hook":
