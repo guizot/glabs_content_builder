@@ -1,8 +1,8 @@
 """
 Instagram Feed (Square) — Content Template — Design 1
-Style: Light/warm bg, title + description layout,
-       coral accent elements.
-Optimized for 1080x1080 (1:1) ratio — compact square layout.
+Style: Minimalist Light, logo top-left,
+       title + description below logo.
+Optimized for 1080x1080 (1:1) ratio.
 """
 
 from PIL import Image, ImageDraw
@@ -17,94 +17,94 @@ class ContentDesign1:
         self.content = content
 
     def render(self) -> Image.Image:
-        # --- Background: warm off-white ---
-        bg_color = "#F5F0EB"
+        # --- Background: Deep Black ---
+        bg_color = "#FFFFFF"
         img = create_canvas(self.width, self.height, bg_color)
         draw = ImageDraw.Draw(img)
 
-        accent_color = "#E17055"
-        text_dark = "#2D3436"
-        text_muted = "#636E72"
+        text_dark = "#000000"
+        text_muted = "#555555"
 
-        # --- Left accent stripe (shorter for square) ---
-        stripe_width = 18
-        stripe_x = 80
-        stripe_top = 140
-        stripe_bottom = self.height - 140
-        draw.rectangle(
-            [stripe_x, stripe_top, stripe_x + stripe_width, stripe_bottom],
-            fill=accent_color,
-        )
+        # --- Branding: 'guizot labs' (Top-Left) ---
+        padding_x = 70
+        padding_y = 70
+        
+        brand_font_bold = load_font("poppins_semibold", 44)
+        draw.text((padding_x, padding_y), "guizot", fill=text_dark, font=brand_font_bold)
+        
+        brand_w_guizot = draw.textlength("guizot", font=brand_font_bold)
+        brand_font_reg = load_font("poppins_regular", 44)
+        draw.text((padding_x + brand_w_guizot + 8, padding_y), "labs", fill=text_dark, font=brand_font_reg)
+
+        # --- Separator Line ---
+        draw.line([padding_x, padding_y + 90, self.width - padding_x, padding_y + 90], fill=text_dark, width=1)
 
         # --- Layout ---
-        padding_left = stripe_x + stripe_width + 50
-        padding_right = 100
-        text_area_width = self.width - padding_left - padding_right
+        content_y = padding_y + 155
+        text_area_width = self.width - (padding_x * 2)
 
         # --- Title ---
         title_text = self.content.get("title", "Title Goes Here")
         title_font = load_font("poppins_semibold", 52)
         title_lines = wrap_text(title_text, title_font, text_area_width)
 
-        title_y = 200
         title_end_y = draw_text_block(
             draw,
             title_lines,
             title_font,
-            x=padding_left,
-            y=title_y,
+            x=padding_x,
+            y=content_y,
             color=text_dark,
-            line_spacing=14,
+            line_spacing=6,
             align="left",
-        )
-
-        # --- Accent divider ---
-        divider_y = title_end_y + 20
-        divider_width = 80
-        draw.rectangle(
-            [padding_left, divider_y, padding_left + divider_width, divider_y + 6],
-            fill=accent_color,
         )
 
         # --- Description ---
         desc_text = self.content.get("description", "Description text goes here.")
-        desc_font = load_font("poppins_regular", 32)
+        desc_font = load_font("poppins_regular", 34)
         desc_lines = wrap_text(desc_text, desc_font, text_area_width)
 
-        desc_y = divider_y + 40
+        desc_y = title_end_y + 30
         draw_text_block(
             draw,
             desc_lines,
             desc_font,
-            x=padding_left,
+            x=padding_x,
             y=desc_y,
             color=text_muted,
-            line_spacing=22,
+            line_spacing=14,
             align="left",
         )
 
-        # --- Top-right corner circle ---
-        circle_radius = 50
-        circle_x = self.width - 110
-        circle_y = 110
-        draw.ellipse(
-            [
-                circle_x - circle_radius,
-                circle_y - circle_radius,
-                circle_x + circle_radius,
-                circle_y + circle_radius,
-            ],
-            fill=accent_color,
-        )
+        # --- Footer ---
+        footer_font = load_font("poppins_regular", 28)
+        footer_y = self.height - 120
 
-        # --- Bottom accent bar ---
-        badge_w = 120
-        badge_h = 8
-        badge_x = padding_left
-        badge_y = self.height - 110
-        draw.rectangle(
-            [badge_x, badge_y, badge_x + badge_w, badge_y + badge_h],
-            fill=accent_color,
-        )
+        # Bottom left
+        draw.text((padding_x, footer_y), "@glabs.ai", fill=text_dark, font=footer_font)
+
+        # Bottom right: Swipe ->
+        swipe_text = "Swipe"
+        swipe_w = draw.textlength(swipe_text, font=footer_font)
+        arrow_gap = 10
+        arrow_len = 36
+        arrow_head = 8
+        total_swipe_w = swipe_w + arrow_gap + arrow_len
+
+        swipe_x = self.width - padding_x - total_swipe_w
+        draw.text((swipe_x, footer_y), swipe_text, fill=text_dark, font=footer_font)
+
+        # Arrow
+        bbox = draw.textbbox((0, 0), "S", font=footer_font)
+        arrow_y = footer_y + (bbox[3] - bbox[1]) // 2 + bbox[1]
+        
+        arrow_start_x = swipe_x + swipe_w + arrow_gap
+        arrow_end_x = arrow_start_x + arrow_len
+
+        line_w = 2
+        draw.line([arrow_start_x, arrow_y, arrow_end_x, arrow_y], fill=text_dark, width=line_w)
+        draw.line([arrow_end_x - arrow_head, arrow_y - arrow_head + 2, arrow_end_x, arrow_y], fill=text_dark, width=line_w)
+        draw.line([arrow_end_x - arrow_head, arrow_y + arrow_head - 2, arrow_end_x, arrow_y], fill=text_dark, width=line_w)
+
 
         return img

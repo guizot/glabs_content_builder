@@ -1,4 +1,4 @@
 create 
 instagram feed that has 1 hook and 2 content also 1 cta
 using design2 from this articles:
-https://www.theverge.com/ai-artificial-intelligence/889395/ai-agents-unmask-anonymous-online-accounts
+https://www.theverge.com/tech/889756/mwc-2026-unihertz-light-phone-clicks
